@@ -1,4 +1,4 @@
-import {COLS,ROWS,START,EXIT,createGame,advance,act,normalizeTelemetry} from './game.mjs';
+import {COLS,ROWS,createGame,advance,act,normalizeTelemetry} from './game.mjs';
 
 const $=id=>document.getElementById(id),arrows=['↑','→','↓','←'];
 const GAME_KEY='squeek-rescue-local-game',SCORES_KEY='squeek-rescue-local-scores';
@@ -68,8 +68,8 @@ function render(){
  $('mode').textContent=game.finished?'Shift complete':live.available?'Live wheel linked':'Hand-crank practice';$('notice').textContent=game.notice;
  $('launch').disabled=game.finished||game.energy<2||game.runners.length>=4;$('pump').disabled=game.finished||game.heat>75;$('restart').hidden=!game.finished;$('start').disabled=!game.finished;$('name').disabled=!game.finished;
  for(let i=0;i<COLS*ROWS;i++){
-  const tile=$('cell-'+i);tile.className='tile'+(game.walls.includes(i)?' wall':'')+(i===EXIT?' exit':'')+(i===START?' entry':'');tile.replaceChildren(document.createTextNode(game.walls.includes(i)?'':i===EXIT?'⌂':arrows[game.board[i]]));tile.disabled=game.finished||game.walls.includes(i)||i===EXIT;tile.setAttribute('aria-label',`Row ${Math.floor(i/COLS)+1}, column ${i%COLS+1}, direction ${arrows[game.board[i]]}`);
-  if(i===START||i===EXIT){const label=document.createElement('em');label.textContent=i===START?'IN':'HOME';tile.append(label);}
+  const tile=$('cell-'+i);tile.className='tile'+(game.walls.includes(i)?' wall':'')+(i===game.exit?' exit':'')+(i===game.start?' entry':'');tile.replaceChildren(document.createTextNode(game.walls.includes(i)?'':i===game.exit?'⌂':arrows[game.board[i]]));tile.disabled=game.finished||game.walls.includes(i)||i===game.exit;tile.setAttribute('aria-label',`Row ${Math.floor(i/COLS)+1}, column ${i%COLS+1}, direction ${arrows[game.board[i]]}`);
+  if(i===game.start||i===game.exit){const label=document.createElement('em');label.textContent=i===game.start?'IN':'HOME';tile.append(label);}
   const runners=game.runners.filter(r=>r.cell===i);
   if(runners.length){const hamster=document.createElement('span');hamster.className='runner';hamster.setAttribute('role','img');hamster.setAttribute('aria-label','Hamster');tile.append(hamster);if(runners.length>1){const count=document.createElement('span');count.className='occupancy';count.textContent=runners.length;tile.append(count);}}
  }
@@ -78,7 +78,7 @@ function render(){
 /** 创建真实可操作的棋盘，不需要服务器生成对局。 */
 function buildBoard(){
  const preview=createGame(crypto.getRandomValues(new Uint32Array(1))[0]);
- for(let i=0;i<COLS*ROWS;i++){const tile=document.createElement('button');tile.id='cell-'+i;tile.className='tile'+(preview.walls.includes(i)?' wall':'')+(i===EXIT?' exit':'')+(i===START?' entry':'');tile.textContent=preview.walls.includes(i)?'':i===EXIT?'⌂':arrows[preview.board[i]];tile.disabled=true;tile.addEventListener('click',rotateTile);$('board').append(tile);}
+ for(let i=0;i<COLS*ROWS;i++){const tile=document.createElement('button');tile.id='cell-'+i;tile.className='tile'+(preview.walls.includes(i)?' wall':'')+(i===preview.exit?' exit':'')+(i===preview.start?' entry':'');tile.textContent=preview.walls.includes(i)?'':i===preview.exit?'⌂':arrows[preview.board[i]];if(i===preview.start||i===preview.exit){const label=document.createElement('em');label.textContent=i===preview.start?'IN':'HOME';tile.append(label);}tile.disabled=true;tile.addEventListener('click',rotateTile);$('board').append(tile);}
 }
 
 /** 点击棋盘时只将对应位置交给本地引擎旋转。 */

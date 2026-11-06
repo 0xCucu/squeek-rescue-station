@@ -1,16 +1,21 @@
-export const COLS=7, ROWS=5, DURATION=120000, START=14, EXIT=20;
+export const COLS=7, ROWS=5, DURATION=120000;
 const MOVES=[-COLS,1,COLS,-1];
 /** 按种子随机生成箭头和障碍，并预留一条可由玩家调整箭头连通的路线。 */
 export function createGame(seed=1,now=0){
  let value=seed>>>0;
  const board=Array.from({length:COLS*ROWS},()=>{value=(Math.imul(value,1664525)+1013904223)>>>0;return value>>>16&3;});
- const routeRow=(value>>>16)%ROWS,route=new Set();
- for(let row=Math.min(2,routeRow);row<=Math.max(2,routeRow);row++){route.add(row*COLS);route.add(row*COLS+COLS-1);}
- for(let col=0;col<COLS;col++)route.add(routeRow*COLS+col);
+ value=(Math.imul(value,1664525)+1013904223)>>>0;const start=(value>>>8)%(COLS*ROWS);
+ value=(Math.imul(value,1664525)+1013904223)>>>0;let exit=(value>>>8)%(COLS*ROWS-1);if(exit>=start)exit++;
+ const route=new Set([start]);let cell=start;
+ while(cell!==exit){
+  value=(Math.imul(value,1664525)+1013904223)>>>0;
+  const dx=exit%COLS-cell%COLS,dy=Math.floor(exit/COLS)-Math.floor(cell/COLS);
+  cell+=dx&&(!dy||(value&65536))?Math.sign(dx):Math.sign(dy)*COLS;route.add(cell);
+ }
  const candidates=Array.from({length:COLS*ROWS},(_,i)=>i).filter(i=>!route.has(i));
  for(let i=candidates.length-1;i>0;i--){value=(Math.imul(value,1664525)+1013904223)>>>0;const j=(value>>>8)%(i+1);[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
  const walls=candidates.slice(0,3);
- return {seed,board,walls,startedAt:now,lastAt:now,nextMove:0,energy:24,heat:0,lastPump:now-2000,rescued:0,lost:0,rotations:0,launched:0,runners:[],score:0,remaining:DURATION,finished:false,liveSeconds:0,practiceSeconds:0,lastActionAt:now-100,notice:'Turn the belts and guide your pals from the entrance to the safe house.'};
+ return {seed,board,walls,start,exit,startedAt:now,lastAt:now,nextMove:0,energy:24,heat:0,lastPump:now-2000,rescued:0,lost:0,rotations:0,launched:0,runners:[],score:0,remaining:DURATION,finished:false,liveSeconds:0,practiceSeconds:0,lastActionAt:now-100,notice:'Turn the belts and guide your pals from the entrance to the safe house.'};
 }
 /** 归一化官方传感器数据，过期或不可用不冒充仓鼠停跑。 */
 export function normalizeTelemetry(raw,now=Date.now()){
@@ -41,7 +46,7 @@ export function advance(game,now,telemetry){
    const next=nextCell(runner.cell,game.board[runner.cell]);
    if(next<0||game.walls.includes(next)){runner.jam++;continue;}
    game.energy-=1;runner.cell=next;runner.steps++;
-   if(next===EXIT){runner.done=true;game.rescued++;game.score+=100+Math.max(0,30-runner.steps);game.notice=`${game.rescued} ${game.rescued===1?'pal is':'pals are'} home safe!`;}
+   if(next===game.exit){runner.done=true;game.rescued++;game.score+=100+Math.max(0,30-runner.steps);game.notice=`${game.rescued} ${game.rescued===1?'pal is':'pals are'} home safe!`;}
    else if(runner.steps>=65){runner.done=true;game.lost++;game.notice='A pal got lost. Check the arrows along your route.';}
   }
   game.runners=game.runners.filter(r=>!r.done);
@@ -55,12 +60,12 @@ export function act(game,input,now,telemetry){
  if(game.finished)throw Error('This shift has ended. Start another rescue.');
  if(now-game.lastActionAt<80)throw Error('One action at a time.');
  if(input.type==='rotate'){
-  if(!Number.isInteger(input.cell)||input.cell<0||input.cell>=COLS*ROWS||game.walls.includes(input.cell)||input.cell===EXIT)throw Error('This tile cannot be rotated.');
+  if(!Number.isInteger(input.cell)||input.cell<0||input.cell>=COLS*ROWS||game.walls.includes(input.cell)||input.cell===game.exit)throw Error('This tile cannot be rotated.');
   game.board[input.cell]=(game.board[input.cell]+1)%4;game.rotations++;
  }else if(input.type==='launch'){
   if(game.runners.length>=4)throw Error('Guide up to four pals at once.');
   if(game.energy<2)throw Error('Battery low. Use the hand crank.');
-  game.energy-=2;game.launched++;game.runners.push({id:game.launched,cell:START,steps:0,jam:0,done:false});
+  game.energy-=2;game.launched++;game.runners.push({id:game.launched,cell:game.start,steps:0,jam:0,done:false});
  }else if(input.type==='pump'){
   if(now-game.lastPump<1000)throw Error('The crank is resetting.');
   if(game.heat>75)throw Error('The crank is too hot. Let it cool.');
