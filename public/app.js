@@ -1,4 +1,4 @@
-import {COLS,ROWS,START,EXIT,WALLS,createGame,advance,act,normalizeTelemetry} from './game.mjs';
+import {COLS,ROWS,START,EXIT,createGame,advance,act,normalizeTelemetry} from './game.mjs';
 
 const $=id=>document.getElementById(id),arrows=['↑','→','↓','←'];
 const GAME_KEY='squeek-rescue-local-game',SCORES_KEY='squeek-rescue-local-scores';
@@ -10,11 +10,9 @@ function writeLocal(key,value){
  catch{$('notice').textContent='Browser storage is unavailable. This shift will not be saved.';}
 }
 
-/** 只恢复当前浏览器自己的数据，旧服务器对局编号不作为本地游戏读取。 */
+/** 只恢复昵称和成绩，每次打开页面都使用新地图，不恢复旧局面。 */
 function restoreLocal(){
  try{
-  const saved=JSON.parse(localStorage.getItem(GAME_KEY)||'null');
-  if(saved&&Array.isArray(saved.board)&&saved.board.length===COLS*ROWS&&Array.isArray(saved.runners)&&Number.isFinite(saved.lastAt)&&Number.isFinite(saved.remaining))current=saved;
   const records=JSON.parse(localStorage.getItem(SCORES_KEY)||'[]');
   if(Array.isArray(records))scores=records.filter(row=>typeof row.name==='string'&&Number.isFinite(row.score)&&Number.isFinite(row.rescued)).slice(0,10);
   $('name').value=JSON.parse(localStorage.getItem('squeek-rescue-local-name')||'""');
@@ -70,7 +68,7 @@ function render(){
  $('mode').textContent=game.finished?'Shift complete':live.available?'Live wheel linked':'Hand-crank practice';$('notice').textContent=game.notice;
  $('launch').disabled=game.finished||game.energy<2||game.runners.length>=4;$('pump').disabled=game.finished||game.heat>75;$('restart').hidden=!game.finished;$('start').disabled=!game.finished;$('name').disabled=!game.finished;
  for(let i=0;i<COLS*ROWS;i++){
-  const tile=$('cell-'+i);tile.replaceChildren(document.createTextNode(WALLS.includes(i)?'':i===EXIT?'⌂':arrows[game.board[i]]));tile.disabled=game.finished||WALLS.includes(i)||i===EXIT;tile.setAttribute('aria-label',`Row ${Math.floor(i/COLS)+1}, column ${i%COLS+1}, direction ${arrows[game.board[i]]}`);
+  const tile=$('cell-'+i);tile.className='tile'+(game.walls.includes(i)?' wall':'')+(i===EXIT?' exit':'')+(i===START?' entry':'');tile.replaceChildren(document.createTextNode(game.walls.includes(i)?'':i===EXIT?'⌂':arrows[game.board[i]]));tile.disabled=game.finished||game.walls.includes(i)||i===EXIT;tile.setAttribute('aria-label',`Row ${Math.floor(i/COLS)+1}, column ${i%COLS+1}, direction ${arrows[game.board[i]]}`);
   if(i===START||i===EXIT){const label=document.createElement('em');label.textContent=i===START?'IN':'HOME';tile.append(label);}
   const runners=game.runners.filter(r=>r.cell===i);
   if(runners.length){const hamster=document.createElement('span');hamster.className='runner';hamster.setAttribute('role','img');hamster.setAttribute('aria-label','Hamster');tile.append(hamster);if(runners.length>1){const count=document.createElement('span');count.className='occupancy';count.textContent=runners.length;tile.append(count);}}
@@ -79,7 +77,8 @@ function render(){
 
 /** 创建真实可操作的棋盘，不需要服务器生成对局。 */
 function buildBoard(){
- for(let i=0;i<COLS*ROWS;i++){const tile=document.createElement('button');tile.id='cell-'+i;tile.className='tile'+(WALLS.includes(i)?' wall':'')+(i===EXIT?' exit':'')+(i===START?' entry':'');tile.textContent=WALLS.includes(i)?'':i===EXIT?'⌂':'→';tile.disabled=true;tile.addEventListener('click',rotateTile);$('board').append(tile);}
+ const preview=createGame(crypto.getRandomValues(new Uint32Array(1))[0]);
+ for(let i=0;i<COLS*ROWS;i++){const tile=document.createElement('button');tile.id='cell-'+i;tile.className='tile'+(preview.walls.includes(i)?' wall':'')+(i===EXIT?' exit':'')+(i===START?' entry':'');tile.textContent=preview.walls.includes(i)?'':i===EXIT?'⌂':arrows[preview.board[i]];tile.disabled=true;tile.addEventListener('click',rotateTile);$('board').append(tile);}
 }
 
 /** 点击棋盘时只将对应位置交给本地引擎旋转。 */

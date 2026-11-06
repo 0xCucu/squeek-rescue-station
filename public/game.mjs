@@ -1,11 +1,16 @@
 export const COLS=7, ROWS=5, DURATION=120000, START=14, EXIT=20;
-export const WALLS=[9,23,18];
 const MOVES=[-COLS,1,COLS,-1];
-/** 创建可复现的传送带关卡；中央障碍上方和下方都有可达路线。 */
+/** 按种子随机生成箭头和障碍，并预留一条可由玩家调整箭头连通的路线。 */
 export function createGame(seed=1,now=0){
  let value=seed>>>0;
  const board=Array.from({length:COLS*ROWS},()=>{value=(Math.imul(value,1664525)+1013904223)>>>0;return value>>>16&3;});
- return {seed,board,startedAt:now,lastAt:now,nextMove:0,energy:24,heat:0,lastPump:now-2000,rescued:0,lost:0,rotations:0,launched:0,runners:[],score:0,remaining:DURATION,finished:false,liveSeconds:0,practiceSeconds:0,lastActionAt:now-100,notice:'Turn the belts and guide your pals from the entrance to the safe house.'};
+ const routeRow=(value>>>16)%ROWS,route=new Set();
+ for(let row=Math.min(2,routeRow);row<=Math.max(2,routeRow);row++){route.add(row*COLS);route.add(row*COLS+COLS-1);}
+ for(let col=0;col<COLS;col++)route.add(routeRow*COLS+col);
+ const candidates=Array.from({length:COLS*ROWS},(_,i)=>i).filter(i=>!route.has(i));
+ for(let i=candidates.length-1;i>0;i--){value=(Math.imul(value,1664525)+1013904223)>>>0;const j=(value>>>8)%(i+1);[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+ const walls=candidates.slice(0,3);
+ return {seed,board,walls,startedAt:now,lastAt:now,nextMove:0,energy:24,heat:0,lastPump:now-2000,rescued:0,lost:0,rotations:0,launched:0,runners:[],score:0,remaining:DURATION,finished:false,liveSeconds:0,practiceSeconds:0,lastActionAt:now-100,notice:'Turn the belts and guide your pals from the entrance to the safe house.'};
 }
 /** 归一化官方传感器数据，过期或不可用不冒充仓鼠停跑。 */
 export function normalizeTelemetry(raw,now=Date.now()){
@@ -34,7 +39,7 @@ export function advance(game,now,telemetry){
   for(const runner of game.runners){
    if(runner.done||game.energy<1)continue;
    const next=nextCell(runner.cell,game.board[runner.cell]);
-   if(next<0||WALLS.includes(next)){runner.jam++;continue;}
+   if(next<0||game.walls.includes(next)){runner.jam++;continue;}
    game.energy-=1;runner.cell=next;runner.steps++;
    if(next===EXIT){runner.done=true;game.rescued++;game.score+=100+Math.max(0,30-runner.steps);game.notice=`${game.rescued} ${game.rescued===1?'pal is':'pals are'} home safe!`;}
    else if(runner.steps>=65){runner.done=true;game.lost++;game.notice='A pal got lost. Check the arrows along your route.';}
@@ -50,7 +55,7 @@ export function act(game,input,now,telemetry){
  if(game.finished)throw Error('This shift has ended. Start another rescue.');
  if(now-game.lastActionAt<80)throw Error('One action at a time.');
  if(input.type==='rotate'){
-  if(!Number.isInteger(input.cell)||input.cell<0||input.cell>=COLS*ROWS||WALLS.includes(input.cell)||input.cell===EXIT)throw Error('This tile cannot be rotated.');
+  if(!Number.isInteger(input.cell)||input.cell<0||input.cell>=COLS*ROWS||game.walls.includes(input.cell)||input.cell===EXIT)throw Error('This tile cannot be rotated.');
   game.board[input.cell]=(game.board[input.cell]+1)%4;game.rotations++;
  }else if(input.type==='launch'){
   if(game.runners.length>=4)throw Error('Guide up to four pals at once.');
