@@ -1,0 +1,9 @@
+{
+  "name": "squeek-rescue-station",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A playable Squeekchain-powered conveyor rescue puzzle",
+  "scripts": {"start": "node server.mjs", "test": "node --test test/*.test.mjs"},
+  "engines": {"node": ">=22"}
+}
